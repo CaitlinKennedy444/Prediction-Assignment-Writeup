@@ -1,0 +1,94 @@
+---
+title: "Prediction Assignment Writeup"
+author: "WS Lee"
+date: "May 17, 2017"
+output: html_document
+---
+
+# Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.  
+In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+# Data Loading and Cleaning
+```{r, message = FALSE}
+library(caret)
+set.seed(112233)
+```
+
+The data set contains NA and column that not used for model building and predicting. Clean up need to be done before proceed with model building.
+```{r}
+if(!file.exists("pml-training.csv")) {
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "pml-training.csv") }
+
+if(!file.exists("pml-testing.csv")) {
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "pml-testing.csv") }
+
+# Loading the data into R
+raw_training <- read.csv("pml-training.csv")
+raw_testing <- read.csv("pml-testing.csv")
+
+# Removing the column that contain NA
+na_list <- apply(raw_training, 2, function(x) {sum(is.na(x))})
+train1 <- raw_training[na_list == 0]
+test1 <- raw_testing[na_list == 0]
+
+# Removing the column that empty
+empty_list <- apply(train1, 2, function(x) {sum(x == "")})
+train2 <- train1[empty_list == 0]
+test2 <- test1[empty_list == 0]
+
+# Remove the first seven column that not numeric
+training <- train2[-c(1:7)]
+testing <- test2[-c(1:7)]
+
+# Final result of the cleaned data
+str(training)
+str(testing)
+```
+
+The dataset is split into a training data set (70%) and testing data set (30%). The training data set will be use to train the model and the testing data set will be use to test the accuracy of the model.
+```{r}
+inTrain <- createDataPartition(y=training$classe, p=0.7, list = FALSE)
+myTrain <- training[inTrain, ]
+myTest <- training[-inTrain, ]
+
+```
+
+
+# Prediction Model Building
+
+## Method: Decision Tree
+```{r, message = FALSE, cache = TRUE}
+mdl1 <- train(classe ~ . , method = "rpart", data = myTrain)
+pred <- predict(mdl1, myTest)
+confusionMatrix(table(pred, myTest$classe))
+```
+The Decision Tree model showing a low accuracy of 49.09%. This model is not good to use for this exercise.
+
+
+## Method: Random Forest
+```{r, message=FALSE, cache=TRUE}
+mdl2 <- train(classe ~ . , method = "rf", data = myTrain, prox=TRUE)
+pred <- predict(mdl2, myTest)
+confusionMatrix(table(pred, myTest$classe))
+```
+Random Forest model have a higher accuracy of 99.42%. 
+
+
+## Method: Generalized Boosted Regression
+```{r, message = FALSE, cache = TRUE}
+mdl3 <- train(classe ~ . , method = "gbm", data = myTrain, verbose=FALSE)
+pred <- predict(mdl3, myTest)
+confusionMatrix(table(pred, myTest$classe))
+```
+Generalized Boosted Regression have accuracy of 96.06%.
+
+
+# Predicting Results
+Random Forest give the highest accuracy of 99.42% among all the 3 models.  
+Thus the Random Forest model will be use to predict the result on the supplied test data (pml-testing.csv).
+```{r, message=FALSE, cache = TRUE}
+predictionResult <- predict(mdl2, testing)
+print(predictionResult)
+```
+
